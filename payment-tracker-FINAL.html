@@ -1,0 +1,1340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Payment Tracker - Complete with Backup</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1117; --surface: #181c27; --surface2: #1f2438;
+    --border: #2a2f45; --border2: #374060; --text: #e8eaf0; --muted: #8890a8;
+    --accent: #4f8ef7; --accent-dim: #1e2d4f;
+    --success: #34c97a; --success-dim: #0f2d1e;
+    --warning: #f5a623; --warning-dim: #2d2010;
+    --danger: #f75a5a; --danger-dim: #2d1010;
+    --purple: #a78bfa; --purple-dim: #221a3d;
+    --orange: #fb923c; --orange-dim: #2d1a10;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'IBM Plex Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  .header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 1rem 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  .header-title { display: flex; align-items: center; gap: 12px; }
+  .logo-mark {
+    width: 36px; height: 36px; background: var(--accent);
+    border-radius: 8px; display: flex; align-items: center; justify-content: center;
+    font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 500; color: #fff;
+  }
+  .header h1 { font-size: 17px; font-weight: 600; letter-spacing: -0.3px; }
+  .header-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 14px; border-radius: 7px; font-size: 13px; font-weight: 500;
+    cursor: pointer; border: 1px solid var(--border2);
+    background: var(--surface2); color: var(--text); transition: all 0.15s;
+  }
+  .btn:hover { background: var(--border); }
+  .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn-success { background: var(--success); border-color: var(--success); color: #000; }
+  .btn-warning { background: var(--warning); border-color: var(--warning); color: #000; }
+  .btn-sm { padding: 4px 10px; font-size: 12px; }
+
+  .stats-bar {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 1px;
+    background: var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+  .stat-card { background: var(--surface); padding: 1rem 1.5rem; }
+  .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px; }
+  .stat-value { font-size: 22px; font-weight: 600; font-family: 'IBM Plex Mono', monospace; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 1400px; }
+  thead th {
+    background: var(--surface); color: var(--muted); font-size: 11px;
+    font-weight: 500; text-transform: uppercase; padding: 10px 12px;
+    text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap;
+  }
+  tbody tr { border-bottom: 1px solid var(--border); transition: background 0.1s; cursor: pointer; }
+  tbody tr:hover { background: var(--surface); }
+  tbody tr.pending-row { background: rgba(251, 146, 60, 0.1); }
+  td { padding: 11px 12px; vertical-align: middle; }
+
+  .badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 8px; border-radius: 5px; font-size: 11px;
+    font-weight: 500; font-family: 'IBM Plex Mono', monospace; white-space: nowrap;
+  }
+  .badge-gcash { background: #1a2b4a; color: #60a5fa; }
+  .badge-bdo { background: #1a2a1a; color: #4ade80; }
+  .badge-bpi { background: #2a1a1a; color: #f87171; }
+  .badge-cash { background: #2a2a1a; color: #fbbf24; }
+
+  .channel-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 8px; border-radius: 5px; font-size: 11px; font-weight: 500;
+  }
+  .channel-facebook { background: #1a2b4a; color: #60a5fa; }
+  .channel-youtube { background: #2a1a1a; color: #f87171; }
+  .channel-tiktok { background: #2a1a2a; color: #c084fc; }
+  .channel-referral { background: #1a2a1a; color: #4ade80; }
+
+  .approval-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 500;
+  }
+  .approval-pending {
+    background: var(--orange-dim); color: var(--orange);
+    animation: pulse 2s infinite;
+  }
+  .approval-approved { background: var(--success-dim); color: var(--success); }
+  
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+  .pending-count {
+    background: var(--orange); color: #000;
+    padding: 2px 8px; border-radius: 12px;
+    font-size: 11px; font-weight: 600; margin-left: 6px;
+  }
+
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7); z-index: 100;
+    align-items: center; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--surface); border: 1px solid var(--border2);
+    border-radius: 12px; width: 100%; max-width: 720px;
+    max-height: 90vh; overflow-y: auto; padding: 1.5rem; position: relative;
+  }
+  .modal h2 { font-size: 16px; font-weight: 600; margin-bottom: 1.25rem; }
+  
+  .form-group { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form-group.full { grid-column: 1 / -1; }
+  label { font-size: 12px; color: var(--muted); font-weight: 500; }
+  input[type="text"], input[type="number"], input[type="date"], textarea, select {
+    background: var(--bg); border: 1px solid var(--border2); color: var(--text);
+    padding: 8px 10px; border-radius: 7px; font-size: 13px;
+  }
+  input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent); }
+  textarea { resize: vertical; min-height: 60px; }
+
+  .input-with-add { display: flex; gap: 6px; }
+  .input-with-add select { flex: 1; }
+  .add-option-btn {
+    padding: 7px 12px; background: var(--accent-dim);
+    border: 1px solid var(--accent); color: var(--accent);
+    border-radius: 7px; font-size: 13px; cursor: pointer; white-space: nowrap;
+  }
+  .add-option-btn:hover { background: var(--accent); color: #fff; }
+
+  .alert {
+    padding: 12px 16px; border-radius: 8px; font-size: 13px;
+    margin-bottom: 1rem; display: flex; align-items: flex-start; gap: 10px;
+  }
+  .alert-info {
+    background: var(--accent-dim); border: 1px solid var(--accent); color: var(--accent);
+  }
+  .alert-success {
+    background: var(--success-dim); border: 1px solid var(--success); color: var(--success);
+  }
+
+  .leaderboard-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px; background: var(--bg); border-radius: 8px;
+    margin-bottom: 8px; border: 1px solid var(--border);
+  }
+  .leaderboard-rank {
+    width: 32px; height: 32px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 600; font-size: 14px; background: var(--surface2);
+  }
+  .leaderboard-rank.gold { background: #FFD700; color: #000; }
+  .leaderboard-rank.silver { background: #C0C0C0; color: #000; }
+  .leaderboard-rank.bronze { background: #CD7F32; color: #fff; }
+  .leaderboard-name { flex: 1; margin-left: 12px; font-weight: 500; }
+  .leaderboard-stats {
+    display: flex; align-items: center; gap: 20px;
+    font-family: 'IBM Plex Mono', monospace; font-size: 13px;
+  }
+  .stat-item { text-align: center; }
+  .stat-item-label { font-size: 10px; color: var(--muted); text-transform: uppercase; }
+  .stat-item-value { font-size: 16px; font-weight: 600; color: var(--success); }
+
+  .month-tabs {
+    display: flex; gap: 4px; padding: 1rem 2rem 0; overflow-x: auto; background: var(--bg);
+  }
+  .month-tab {
+    padding: 8px 16px; border-radius: 8px 8px 0 0; font-size: 13px;
+    font-weight: 500; cursor: pointer; background: var(--surface);
+    border: 1px solid var(--border); border-bottom: none;
+    color: var(--muted); white-space: nowrap; transition: all 0.15s;
+  }
+  .month-tab:hover { background: var(--surface2); color: var(--text); }
+  .month-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  .toast {
+    position: fixed; bottom: 20px; right: 20px;
+    padding: 12px 20px; border-radius: 8px; font-size: 13px;
+    font-weight: 500; z-index: 1000; opacity: 0;
+    transform: translateY(10px); transition: all 0.2s;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .toast-ok { background: var(--success); color: #000; }
+  .toast-err { background: var(--danger); color: #fff; }
+
+  .toolbar {
+    padding: 1rem 2rem; display: flex; align-items: center; gap: 10px;
+    flex-wrap: wrap; border-bottom: 1px solid var(--border); background: var(--surface);
+  }
+  
+  .search-wrap {
+    position: relative;
+    flex: 1;
+    min-width: 200px;
+  }
+  .search-wrap input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border2);
+    color: var(--text);
+    padding: 7px 12px 7px 34px;
+    border-radius: 7px;
+    font-size: 13px;
+  }
+  .search-wrap input:focus { outline: none; border-color: var(--accent); }
+  .search-ico {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .mono { font-family: 'IBM Plex Mono', monospace; }
+  
+  .ref-number {
+    font-family: 'IBM Plex Mono', monospace;
+    background: var(--surface2);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    color: var(--accent);
+  }
+  
+  .dropdown {
+    position: relative;
+    display: inline-block;
+  }
+  
+  .dropdown-content {
+    display: none;
+    position: absolute;
+    right: 0;
+    background: var(--surface);
+    min-width: 200px;
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    z-index: 1;
+    margin-top: 4px;
+  }
+  
+  .dropdown-content.show {
+    display: block;
+  }
+  
+  .dropdown-item {
+    padding: 10px 14px;
+    cursor: pointer;
+    font-size: 13px;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.15s;
+  }
+  
+  .dropdown-item:hover {
+    background: var(--surface2);
+  }
+  
+  .dropdown-item:last-child {
+    border-bottom: none;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-title">
+    <div class="logo-mark">₱</div>
+    <div>
+      <h1>Payment Tracker - Complete System</h1>
+      <div class="header-sub">Excel & JSON backup • Unlimited capacity • Reference verification</div>
+    </div>
+  </div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+    <span id="syncStatus" style="font-size:12px;min-width:80px;"></span>
+    <button class="btn btn-sm" onclick="refreshData()" title="Reload from Google Sheets">🔄 Refresh</button>
+    <button class="btn btn-warning" onclick="openPendingApprovals()" id="btnPending">
+      ⏳ Pending <span class="pending-count" id="pendingCount">0</span>
+    </button>
+    <button class="btn" onclick="openLeaderboard()">🏆 Leaderboard</button>
+    <button class="btn" onclick="openChannelReport()">📊 Marketing</button>
+    <button class="btn btn-primary" onclick="openAddModal()">+ New Order</button>
+  </div>
+</div>
+
+<div class="stats-bar">
+  <div class="stat-card">
+    <div class="stat-label">Total Orders</div>
+    <div class="stat-value" style="color:var(--accent);" id="statTotalOrders">0</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Total Contracts</div>
+    <div class="stat-value" style="color:var(--accent);" id="statTotalContract">₱0</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Total DP</div>
+    <div class="stat-value" style="color:var(--success);" id="statTotalDP">₱0</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Total Balance</div>
+    <div class="stat-value" style="color:var(--warning);" id="statTotalBalance">₱0</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">⏳ Pending</div>
+    <div class="stat-value" style="color:var(--orange);" id="statPending">0</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">✅ Approved</div>
+    <div class="stat-value" style="color:var(--success);" id="statApproved">0</div>
+  </div>
+</div>
+
+<div class="month-tabs" id="monthTabs"></div>
+
+<div class="toolbar">
+  <div class="search-wrap">
+    <span class="search-ico">🔍</span>
+    <input type="text" id="searchInput" placeholder="Search customer or reference..." oninput="renderTable()">
+  </div>
+  <select id="estimatorFilter" onchange="renderTable()">
+    <option value="all">All Estimators</option>
+  </select>
+  <select id="channelFilter" onchange="renderTable()">
+    <option value="all">All Channels</option>
+  </select>
+  <select id="statusFilter" onchange="renderTable()">
+    <option value="all">All Status</option>
+    <option value="pending">Pending Approval</option>
+    <option value="approved">Approved</option>
+    <option value="paid">Fully Paid</option>
+  </select>
+  
+  <div class="dropdown">
+    <button class="btn btn-sm" onclick="toggleExportMenu()">📥 Export ▼</button>
+    <div class="dropdown-content" id="exportMenu">
+      <div class="dropdown-item" onclick="exportExcel()">📊 Export to Excel</div>
+      <div class="dropdown-item" onclick="exportJSON()">💾 Export to JSON</div>
+    </div>
+  </div>
+  
+  <div class="dropdown">
+    <button class="btn btn-sm" onclick="toggleImportMenu()">📤 Import ▼</button>
+    <div class="dropdown-content" id="importMenu">
+      <div class="dropdown-item" onclick="document.getElementById('importExcel').click()">📊 Import from Excel</div>
+      <div class="dropdown-item" onclick="document.getElementById('importJSON').click()">💾 Import from JSON</div>
+    </div>
+  </div>
+  
+  <input type="file" id="importExcel" accept=".xlsx,.xls" style="display:none;" onchange="importExcel(event)">
+  <input type="file" id="importJSON" accept=".json" style="display:none;" onchange="importJSON(event)">
+</div>
+
+<div style="padding:0 2rem 2rem;overflow-x:auto;">
+  <table>
+    <thead>
+      <tr>
+        <th>Customer</th>
+        <th>Estimator</th>
+        <th>Channel</th>
+        <th>Date</th>
+        <th>Total</th>
+        <th>Approved DP</th>
+        <th>Pending</th>
+        <th>Balance</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="tableBody"></tbody>
+  </table>
+</div>
+
+<!-- Same modals as before... (abbreviated for space) -->
+<div class="modal-overlay" id="addModal">
+  <div class="modal">
+    <button style="position:absolute;top:1rem;right:1rem;background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;" onclick="closeModal('addModal')">×</button>
+    <h2>New Order</h2>
+    <div class="form-grid">
+      <div class="form-group full">
+        <label>Customer Name <span style="color:var(--danger);">*</span></label>
+        <input type="text" id="i_customer">
+      </div>
+      <div class="form-group">
+        <label>Estimator/Closer <span style="color:var(--danger);">*</span></label>
+        <div class="input-with-add">
+          <select id="i_estimator"></select>
+          <button class="add-option-btn" onclick="addEstimator()">+ Add</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Marketing Channel <span style="color:var(--danger);">*</span></label>
+        <div class="input-with-add">
+          <select id="i_channel"></select>
+          <button class="add-option-btn" onclick="addChannel()">+ Add</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Date Ordered <span style="color:var(--danger);">*</span></label>
+        <input type="date" id="i_date">
+      </div>
+      <div class="form-group">
+        <label>Total Amount <span style="color:var(--danger);">*</span></label>
+        <input type="number" id="i_total">
+      </div>
+      <div class="form-group">
+        <label>Product Type</label>
+        <input type="text" id="i_product" placeholder="e.g. Honeycomb">
+      </div>
+      <div class="form-group full">
+        <label>Notes</label>
+        <textarea id="i_notes"></textarea>
+      </div>
+    </div>
+    <div style="margin-top:1.5rem;display:flex;gap:8px;">
+      <button class="btn btn-primary" onclick="saveOrder()">Create Order</button>
+      <button class="btn" onclick="closeModal('addModal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="paymentModal">
+  <div class="modal">
+    <button style="position:absolute;top:1rem;right:1rem;background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;" onclick="closeModal('paymentModal')">×</button>
+    <h2>Add Payment</h2>
+    <div class="alert alert-info">
+      <span>ℹ️</span>
+      <div><strong>Reference Number Required:</strong> CFO will verify the reference number in your bank/Gcash account before approving.</div>
+    </div>
+    <div id="orderInfo" style="padding:12px;background:var(--bg);border-radius:8px;margin-bottom:1rem;"></div>
+    <div class="form-group">
+      <label>Payment Type <span style="color:var(--danger);">*</span></label>
+      <select id="p_type">
+        <option value="dp">Down Payment (DP)</option>
+        <option value="balance">Balance Payment</option>
+        <option value="full">Full Payment</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Amount <span style="color:var(--danger);">*</span></label>
+      <input type="number" id="p_amount">
+    </div>
+    <div class="form-group">
+      <label>Payment Method <span style="color:var(--danger);">*</span></label>
+      <select id="p_method">
+        <option value="gcash">Gcash</option>
+        <option value="bdo">BDO</option>
+        <option value="bpi">BPI</option>
+        <option value="cash">Cash</option>
+        <option value="check">Check</option>
+        <option value="cod">COD</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Paid To (Account/Person) <span style="color:var(--danger);">*</span></label>
+      <input type="text" id="p_paidto" placeholder="e.g. BPI Jayson, Gcash Shiela">
+    </div>
+    <div class="form-group">
+      <label>Reference Number <span style="color:var(--danger);">*</span></label>
+      <input type="text" id="p_ref" placeholder="e.g. GC123456789, BDO987654321">
+    </div>
+    <div class="form-group">
+      <label>Payment Date <span style="color:var(--danger);">*</span></label>
+      <input type="date" id="p_date">
+    </div>
+    <div class="form-group full">
+      <label>Notes</label>
+      <textarea id="p_notes" placeholder="Additional payment details..."></textarea>
+    </div>
+    <div style="margin-top:1.5rem;display:flex;gap:8px;">
+      <button class="btn btn-primary" onclick="submitPayment()">Submit for Approval</button>
+      <button class="btn" onclick="closeModal('paymentModal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="pendingModal">
+  <div class="modal" style="max-width:900px;">
+    <button style="position:absolute;top:1rem;right:1rem;background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;" onclick="closeModal('pendingModal')">×</button>
+    <h2>⏳ Pending Payment Approvals</h2>
+    <div id="pendingContent"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="detailModal">
+  <div class="modal" style="max-width:700px;">
+    <button style="position:absolute;top:1rem;right:1rem;background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;" onclick="closeModal('detailModal')">×</button>
+    <div id="detailContent"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="editModal">
+  <div class="modal">
+    <button style="position:absolute;top:1rem;right:1rem;background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;" onclick="closeModal('editModal')">×</button>
+    <h2>✏️ Edit Order</h2>
+    <div class="form-grid">
+      <div class="form-group full">
+        <label>Customer Name <span style="color:var(--danger);">*</span></label>
+        <input type="text" id="e_customer">
+      </div>
+      <div class="form-group">
+        <label>Estimator/Closer <span style="color:var(--danger);">*</span></label>
+        <div class="input-with-add">
+          <select id="e_estimator"></select>
+          <button class="add-option-btn" onclick="addEstimatorEdit()">+ Add</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Marketing Channel <span style="color:var(--danger);">*</span></label>
+        <div class="input-with-add">
+          <select id="e_channel"></select>
+          <button class="add-option-btn" onclick="addChannelEdit()">+ Add</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Date Ordered <span style="color:var(--danger);">*</span></label>
+        <input type="date" id="e_date">
+      </div>
+      <div class="form-group">
+        <label>Total Contract Amount <span style="color:var(--danger);">*</span></label>
+        <input type="number" id="e_total">
+      </div>
+      <div class="form-group">
+        <label>Product Type</label>
+        <input type="text" id="e_product" placeholder="e.g. Honeycomb">
+      </div>
+      <div class="form-group full">
+        <label>Notes</label>
+        <textarea id="e_notes"></textarea>
+      </div>
+    </div>
+    <div style="margin-top:1.5rem;display:flex;gap:8px;">
+      <button class="btn btn-primary" onclick="saveEditOrder()">💾 Save Changes</button>
+      <button class="btn" onclick="closeModal('editModal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="leaderboardModal">
+  <div class="modal" style="max-width:900px;">
+    <button style="position:absolute;top:1rem;right:1rem;background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;" onclick="closeModal('leaderboardModal')">×</button>
+    <h2>🏆 Estimator Leaderboard</h2>
+    <div style="margin-bottom:1rem;">
+      <label style="margin-right:10px;">Month:</label>
+      <select id="leaderMonth" onchange="updateLeaderboard()"><option value="all">All Time</option></select>
+    </div>
+    <div id="leaderboardContent"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="channelModal">
+  <div class="modal" style="max-width:800px;">
+    <button style="position:absolute;top:1rem;right:1rem;background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;" onclick="closeModal('channelModal')">×</button>
+    <h2>📊 Marketing Channel Report</h2>
+    <div style="margin-bottom:1rem;">
+      <label style="margin-right:10px;">Month:</label>
+      <select id="channelMonth" onchange="updateChannelReport()"><option value="all">All Time</option></select>
+    </div>
+    <div id="channelContent"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+// CONFIGURATION — paste your Apps Script Web App URL here
+// ============================================================
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbylz55BWpwXNe1LwlRQtxBpNWZfdJbI0HkRabclT8e_N79NXIjM0lBUUqz497UmvzBT/exec';
+
+// ============================================================
+// Core state
+// ============================================================
+let orders = [];
+let estimators = ['Henry', 'Tano/Mitch', 'Aldrin', 'Vincent', 'Jay-ar', 'Sir Jayson'];
+let channels = ['Facebook', 'YouTube', 'TikTok', 'Referral'];
+let currentOrderId = null;
+let activeMonth = 'all';
+let isSyncing = false;
+
+// ============================================================
+// Google Sheets API helpers
+// ============================================================
+async function apiCall(payload) {
+  try {
+    const res = await fetch(SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    const json = await res.json();
+    if (!json.success) throw new Error(json.error || 'Unknown error');
+    return json;
+  } catch (err) {
+    console.error('API error:', err);
+    throw err;
+  }
+}
+
+function setSyncStatus(syncing, msg) {
+  isSyncing = syncing;
+  const el = document.getElementById('syncStatus');
+  if (syncing) {
+    el.innerHTML = '<span style="color:var(--warning);">⏳ ' + msg + '</span>';
+  } else {
+    el.innerHTML = '<span style="color:var(--success);">✅ Synced</span>';
+    setTimeout(() => { el.innerHTML = ''; }, 3000);
+  }
+}
+
+// ============================================================
+// Load all data from Google Sheets
+// ============================================================
+async function loadFromSheets() {
+  if (SCRIPT_URL === 'YOUR_APPS_SCRIPT_URL_HERE') {
+    // Fallback to localStorage if not configured yet
+    loadLocal();
+    return;
+  }
+  setSyncStatus(true, 'Loading...');
+  try {
+    const res = await apiCall({ action: 'getAll' });
+    orders = res.orders || [];
+    if (res.estimators && res.estimators.length) estimators = res.estimators;
+    if (res.channels && res.channels.length) channels = res.channels;
+    saveLocal(); // mirror to localStorage as cache
+    buildMonthTabs();
+    renderTable();
+    updateStats();
+    setSyncStatus(false);
+  } catch (err) {
+    showToast('Could not reach Google Sheets — using local cache', 'err');
+    loadLocal();
+    buildMonthTabs();
+    renderTable();
+    updateStats();
+    setSyncStatus(false);
+  }
+}
+
+// ============================================================
+// Local cache (fallback / offline)
+// ============================================================
+function saveLocal() {
+  localStorage.setItem('orders_final', JSON.stringify(orders));
+  localStorage.setItem('estimators_final', JSON.stringify(estimators));
+  localStorage.setItem('channels_final', JSON.stringify(channels));
+}
+
+function loadLocal() {
+  const stored = localStorage.getItem('orders_final');
+  if (stored) orders = JSON.parse(stored);
+  const storedEst = localStorage.getItem('estimators_final');
+  if (storedEst) estimators = JSON.parse(storedEst);
+  const storedChan = localStorage.getItem('channels_final');
+  if (storedChan) channels = JSON.parse(storedChan);
+}
+
+// ============================================================
+// Calculation helpers
+// ============================================================
+function totalApprovedDP(order) {
+  return (order.payments||[]).filter(p => p.status === 'approved' && p.type === 'dp').reduce((sum, p) => sum + p.amount, 0);
+}
+function totalApproved(order) {
+  return (order.payments||[]).filter(p => p.status === 'approved').reduce((sum, p) => sum + p.amount, 0);
+}
+function totalPending(order) {
+  return (order.payments||[]).filter(p => p.status === 'pending').reduce((sum, p) => sum + p.amount, 0);
+}
+function getBalance(order) {
+  return order.total - totalApproved(order);
+}
+function fmt(n) {
+  return '₱' + Number(n).toLocaleString('en-PH', {minimumFractionDigits:0});
+}
+function fmtDate(d) {
+  return new Date(d).toLocaleDateString('en-PH', {month:'short', day:'numeric', year:'numeric'});
+}
+
+// ============================================================
+// Export / Import
+// ============================================================
+function toggleExportMenu() {
+  document.getElementById('exportMenu').classList.toggle('show');
+  document.getElementById('importMenu').classList.remove('show');
+}
+function toggleImportMenu() {
+  document.getElementById('importMenu').classList.toggle('show');
+  document.getElementById('exportMenu').classList.remove('show');
+}
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.dropdown')) {
+    document.querySelectorAll('.dropdown-content').forEach(m => m.classList.remove('show'));
+  }
+});
+
+function exportExcel() {
+  document.getElementById('exportMenu').classList.remove('show');
+  const rows = orders.map(o => ({
+    'Customer': o.customer, 'Estimator': o.estimator||'', 'Channel': o.channel||'',
+    'Date': o.date, 'Total': o.total, 'Product': o.product||'',
+    'Approved DP': totalApprovedDP(o), 'Total Approved': totalApproved(o),
+    'Pending': totalPending(o), 'Balance': getBalance(o),
+    'Status': getBalance(o)===0?'Paid':totalPending(o)>0?'Pending':'Unpaid',
+    'Notes': o.notes||'',
+    'Payments': (o.payments||[]).filter(p=>p.status==='approved').map(p=>
+      `${p.date}|${p.type}|${p.method}|${p.amount}|${p.ref}|${p.paidTo}`).join('; ')
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Orders");
+  XLSX.writeFile(wb, `payment-tracker-${activeMonth==='all'?'all':activeMonth}.xlsx`);
+  showToast('Excel exported!', 'ok');
+}
+
+function exportJSON() {
+  document.getElementById('exportMenu').classList.remove('show');
+  const backup = { version:'1.0', exportDate:new Date().toISOString(), orders, estimators, channels };
+  const blob = new Blob([JSON.stringify(backup,null,2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `payment-tracker-backup-${new Date().toISOString().split('T')[0]}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('JSON backup exported!', 'ok');
+}
+
+function importExcel(event) {
+  document.getElementById('importMenu').classList.remove('show');
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, {type:'array'});
+      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+      if (!confirm(`Import ${rows.length} orders from Excel?\n\nThis will OVERWRITE all existing data. Continue?`)) return;
+      const importedOrders = rows.map(row => {
+        const order = {
+          id: Date.now().toString() + Math.random(),
+          customer: row.Customer||'', estimator: row.Estimator||'', channel: row.Channel||'',
+          date: row.Date||new Date().toISOString().split('T')[0],
+          total: parseFloat(row.Total)||0, product: row.Product||'', notes: row.Notes||'',
+          payments: []
+        };
+        if (row.Payments) {
+          row.Payments.split('; ').forEach(pStr => {
+            const parts = pStr.split('|');
+            if (parts.length >= 4) {
+              order.payments.push({
+                id: Date.now().toString()+Math.random(), date:parts[0], type:parts[1],
+                method:parts[2], amount:parseFloat(parts[3]), ref:parts[4]||'',
+                paidTo:parts[5]||'', status:'approved', approvedBy:'Imported',
+                approvedAt:new Date().toISOString()
+              });
+            }
+          });
+        }
+        return order;
+      });
+      orders = importedOrders;
+      await syncAllToSheets();
+      saveLocal();
+      buildMonthTabs(); renderTable(); updateStats();
+      showToast(`Imported ${rows.length} orders!`, 'ok');
+    } catch(err) { showToast('Error importing Excel file', 'err'); console.error(err); }
+  };
+  reader.readAsArrayBuffer(file);
+  event.target.value = '';
+}
+
+function importJSON(event) {
+  document.getElementById('importMenu').classList.remove('show');
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    try {
+      const backup = JSON.parse(e.target.result);
+      if (!confirm(`Import ${backup.orders.length} orders from JSON?\n\nThis will OVERWRITE all existing data. Continue?`)) return;
+      orders = backup.orders||[];
+      estimators = backup.estimators||estimators;
+      channels = backup.channels||channels;
+      await syncAllToSheets();
+      saveLocal();
+      buildMonthTabs(); renderTable(); updateStats();
+      showToast(`Imported ${backup.orders.length} orders!`, 'ok');
+    } catch(err) { showToast('Invalid JSON file', 'err'); console.error(err); }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+async function syncAllToSheets() {
+  if (SCRIPT_URL === 'YOUR_APPS_SCRIPT_URL_HERE') return;
+  setSyncStatus(true, 'Syncing...');
+  try {
+    await apiCall({ action: 'replaceAll', orders, estimators, channels });
+    setSyncStatus(false);
+  } catch(err) {
+    showToast('Sync failed — saved locally only', 'err');
+    setSyncStatus(false);
+  }
+}
+
+// ============================================================
+// Estimator / Channel helpers
+// ============================================================
+function addEstimator() {
+  const name = prompt('Enter new estimator name:');
+  if (!name||!name.trim()) return;
+  if (estimators.includes(name.trim())) { showToast('Already exists','err'); return; }
+  estimators.push(name.trim()); estimators.sort();
+  saveLocal(); populateEstimators();
+  showToast(`Added: ${name.trim()}`,'ok');
+}
+function addChannel() {
+  const name = prompt('Enter new channel:');
+  if (!name||!name.trim()) return;
+  if (channels.includes(name.trim())) { showToast('Already exists','err'); return; }
+  channels.push(name.trim()); channels.sort();
+  saveLocal(); populateChannels();
+  showToast(`Added: ${name.trim()}`,'ok');
+}
+function populateEstimators() {
+  const sel = document.getElementById('i_estimator');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">Select estimator...</option>' +
+    estimators.map(e=>`<option value="${e}" ${cur===e?'selected':''}>${e}</option>`).join('');
+}
+function populateChannels() {
+  const sel = document.getElementById('i_channel');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">Select channel...</option>' +
+    channels.map(c=>`<option value="${c}" ${cur===c?'selected':''}>${c}</option>`).join('');
+}
+
+// ============================================================
+// Add Order
+// ============================================================
+function openAddModal() {
+  populateEstimators(); populateChannels();
+  ['i_customer','i_estimator','i_channel','i_total','i_product','i_notes'].forEach(id => {
+    const el = document.getElementById(id); if(el) el.value='';
+  });
+  document.getElementById('i_date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('addModal').classList.add('open');
+}
+
+async function saveOrder() {
+  const customer = document.getElementById('i_customer').value.trim();
+  const estimator = document.getElementById('i_estimator').value;
+  const channel = document.getElementById('i_channel').value;
+  const date = document.getElementById('i_date').value;
+  const total = parseFloat(document.getElementById('i_total').value);
+  const product = document.getElementById('i_product').value.trim();
+  const notes = document.getElementById('i_notes').value.trim();
+  if (!customer||!estimator||!channel||!date||!total) { showToast('Fill all required fields','err'); return; }
+
+  const order = { id: Date.now().toString(), customer, estimator, channel, date, total, product, notes, payments:[] };
+  orders.push(order);
+  saveLocal();
+  closeModal('addModal');
+  buildMonthTabs(); renderTable(); updateStats();
+  showToast('Order created','ok');
+
+  // Sync to Sheets in background
+  if (SCRIPT_URL !== 'YOUR_APPS_SCRIPT_URL_HERE') {
+    setSyncStatus(true, 'Saving...');
+    try {
+      await apiCall({ action: 'addOrder', order });
+      setSyncStatus(false);
+    } catch(err) { showToast('Saved locally — sync failed','err'); setSyncStatus(false); }
+  }
+}
+
+// ============================================================
+// Payment Modal
+// ============================================================
+function openPaymentModal(orderId) {
+  currentOrderId = orderId;
+  const order = orders.find(o=>o.id===orderId);
+  document.getElementById('orderInfo').innerHTML = `
+    <div style="font-weight:600;margin-bottom:8px;">${order.customer}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;font-size:13px;">
+      <div><div style="font-size:11px;color:var(--muted);">TOTAL</div><div class="mono" style="font-weight:600;">${fmt(order.total)}</div></div>
+      <div><div style="font-size:11px;color:var(--muted);">APPROVED</div><div class="mono" style="font-weight:600;color:var(--success);">${fmt(totalApproved(order))}</div></div>
+      <div><div style="font-size:11px;color:var(--muted);">BALANCE</div><div class="mono" style="font-weight:600;color:var(--warning);">${fmt(getBalance(order))}</div></div>
+    </div>`;
+  document.getElementById('p_type').value='dp';
+  document.getElementById('p_amount').value='';
+  document.getElementById('p_method').value='gcash';
+  document.getElementById('p_paidto').value='';
+  document.getElementById('p_ref').value='';
+  document.getElementById('p_date').value=new Date().toISOString().split('T')[0];
+  document.getElementById('p_notes').value='';
+  document.getElementById('paymentModal').classList.add('open');
+}
+
+async function submitPayment() {
+  const amount = parseFloat(document.getElementById('p_amount').value);
+  const type = document.getElementById('p_type').value;
+  const method = document.getElementById('p_method').value;
+  const paidTo = document.getElementById('p_paidto').value.trim();
+  const ref = document.getElementById('p_ref').value.trim();
+  const date = document.getElementById('p_date').value;
+  const notes = document.getElementById('p_notes').value.trim();
+  if (!amount||!paidTo||!ref||!date) { showToast('Fill all required fields including reference number','err'); return; }
+
+  const order = orders.find(o=>o.id===currentOrderId);
+  if (!order.payments) order.payments=[];
+  const payment = {
+    id: Date.now().toString(), type, amount, method, paidTo, ref, date, notes,
+    status:'pending', submittedBy:'Secretary', submittedAt:new Date().toISOString()
+  };
+  order.payments.push(payment);
+  saveLocal();
+  closeModal('paymentModal');
+  renderTable(); updateStats();
+  showToast('Submitted for approval!','ok');
+
+  if (SCRIPT_URL !== 'YOUR_APPS_SCRIPT_URL_HERE') {
+    setSyncStatus(true,'Saving...');
+    try {
+      await apiCall({ action:'addPayment', orderId:currentOrderId, payment });
+      setSyncStatus(false);
+    } catch(err) { showToast('Saved locally — sync failed','err'); setSyncStatus(false); }
+  }
+}
+
+// ============================================================
+// Pending Approvals
+// ============================================================
+function openPendingApprovals() {
+  const pending = [];
+  orders.forEach(order => {
+    (order.payments||[]).filter(p=>p.status==='pending').forEach(payment => pending.push({order,payment}));
+  });
+  const content = document.getElementById('pendingContent');
+  if (pending.length===0) {
+    content.innerHTML='<div style="text-align:center;color:var(--muted);padding:3rem;">No pending approvals</div>';
+  } else {
+    content.innerHTML = pending.map(({order,payment}) => `
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:1.5rem;margin-bottom:1rem;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:1rem;">
+          <div>
+            <div style="font-weight:600;font-size:15px;">${order.customer}</div>
+            <div style="font-size:13px;color:var(--muted);margin-top:4px;">${payment.type.toUpperCase()} - ${fmtDate(payment.date)}</div>
+          </div>
+          <div class="mono" style="font-size:20px;font-weight:600;color:var(--warning);">${fmt(payment.amount)}</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:1rem;font-size:13px;">
+          <div><div style="color:var(--muted);font-size:11px;">METHOD</div><div style="text-transform:uppercase;font-weight:500;">${payment.method}</div></div>
+          <div><div style="color:var(--muted);font-size:11px;">PAID TO</div><div style="font-weight:500;">${payment.paidTo}</div></div>
+          <div style="grid-column:1/-1;">
+            <div style="color:var(--muted);font-size:11px;margin-bottom:4px;">REFERENCE NUMBER</div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:600;color:var(--accent);background:var(--surface2);padding:8px 12px;border-radius:6px;">${payment.ref}</div>
+          </div>
+          ${payment.notes?`<div style="grid-column:1/-1;"><div style="color:var(--muted);font-size:11px;margin-bottom:4px;">NOTES</div><div style="font-size:13px;">${payment.notes}</div></div>`:''}
+        </div>
+        <div style="background:var(--orange-dim);border:1px solid var(--orange);border-radius:8px;padding:1rem;">
+          <div style="font-weight:600;color:var(--orange);margin-bottom:8px;">🔍 Verification Required</div>
+          <div style="font-size:12px;margin-bottom:12px;">
+            Check your ${payment.method.toUpperCase()} account (${payment.paidTo}) for reference: <strong>${payment.ref}</strong><br>
+            Verify the amount (${fmt(payment.amount)}) was actually received.
+          </div>
+          <input type="text" id="reject_${payment.id}" placeholder="Rejection reason (if rejecting)..." style="width:100%;margin-bottom:8px;">
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-success" onclick="approvePayment('${order.id}','${payment.id}')">✅ Approve - Money Verified</button>
+            <button class="btn" style="color:var(--danger);" onclick="rejectPayment('${order.id}','${payment.id}')">❌ Reject - Not Received</button>
+          </div>
+        </div>
+      </div>`).join('');
+  }
+  document.getElementById('pendingModal').classList.add('open');
+}
+
+async function approvePayment(orderId, paymentId) {
+  const order = orders.find(o=>o.id===orderId);
+  const payment = order.payments.find(p=>p.id===paymentId);
+  payment.status='approved'; payment.approvedBy='CFO'; payment.approvedAt=new Date().toISOString();
+  saveLocal(); openPendingApprovals(); renderTable(); updateStats();
+  showToast('Payment approved!','ok');
+  if (SCRIPT_URL !== 'YOUR_APPS_SCRIPT_URL_HERE') {
+    setSyncStatus(true,'Saving...');
+    try { await apiCall({action:'updatePaymentStatus',orderId,paymentId,status:'approved',by:'CFO'}); setSyncStatus(false); }
+    catch(err) { showToast('Approved locally — sync failed','err'); setSyncStatus(false); }
+  }
+}
+
+async function rejectPayment(orderId, paymentId) {
+  const reason = document.getElementById(`reject_${paymentId}`).value.trim();
+  if (!reason) { showToast('Enter rejection reason','err'); return; }
+  const order = orders.find(o=>o.id===orderId);
+  const payment = order.payments.find(p=>p.id===paymentId);
+  payment.status='rejected'; payment.rejectedBy='CFO'; payment.rejectedAt=new Date().toISOString(); payment.rejectionReason=reason;
+  saveLocal(); openPendingApprovals(); renderTable(); updateStats();
+  showToast('Payment rejected','ok');
+  if (SCRIPT_URL !== 'YOUR_APPS_SCRIPT_URL_HERE') {
+    setSyncStatus(true,'Saving...');
+    try { await apiCall({action:'updatePaymentStatus',orderId,paymentId,status:'rejected',by:'CFO',reason}); setSyncStatus(false); }
+    catch(err) { showToast('Rejected locally — sync failed','err'); setSyncStatus(false); }
+  }
+}
+
+// ============================================================
+// Order Detail
+// ============================================================
+function showDetail(orderId) {
+  const order = orders.find(o=>o.id===orderId);
+  const approved=totalApproved(order), pending=totalPending(order), balance=getBalance(order);
+  document.getElementById('detailContent').innerHTML = `
+    <h2>${order.customer}</h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:1rem 0;padding:1rem;background:var(--bg);border-radius:8px;">
+      <div><div style="font-size:11px;color:var(--muted);">ESTIMATOR</div><div style="font-weight:600;">${order.estimator}</div></div>
+      <div><div style="font-size:11px;color:var(--muted);">CHANNEL</div><div><span class="channel-badge channel-${(order.channel||'').toLowerCase().replace(/\s+/g,'-')}">${order.channel}</span></div></div>
+      <div><div style="font-size:11px;color:var(--muted);">DATE</div><div>${fmtDate(order.date)}</div></div>
+      <div><div style="font-size:11px;color:var(--muted);">PRODUCT</div><div>${order.product||'—'}</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin:1rem 0;">
+      <div style="text-align:center;padding:1rem;background:var(--bg);border-radius:8px;">
+        <div style="font-size:11px;color:var(--muted);">TOTAL</div>
+        <div class="mono" style="font-size:18px;font-weight:600;">${fmt(order.total)}</div>
+      </div>
+      <div style="text-align:center;padding:1rem;background:var(--success-dim);border-radius:8px;">
+        <div style="font-size:11px;color:var(--success);">APPROVED</div>
+        <div class="mono" style="font-size:18px;font-weight:600;color:var(--success);">${fmt(approved)}</div>
+      </div>
+      <div style="text-align:center;padding:1rem;background:var(--warning-dim);border-radius:8px;">
+        <div style="font-size:11px;color:var(--warning);">BALANCE</div>
+        <div class="mono" style="font-size:18px;font-weight:600;color:var(--warning);">${fmt(balance)}</div>
+      </div>
+    </div>
+    <div style="margin-top:1.5rem;">
+      <div style="font-size:13px;font-weight:600;margin-bottom:12px;">Payment History (${(order.payments||[]).length})</div>
+      ${(order.payments||[]).length===0?'<div style="text-align:center;color:var(--muted);padding:2rem;">No payments yet</div>':
+        (order.payments||[]).map(p=>`
+          <div style="padding:12px;background:var(--bg);border:1px solid ${p.status==='approved'?'var(--success)':p.status==='rejected'?'var(--danger)':'var(--border)'};border-radius:8px;margin-bottom:8px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+              <div>
+                <span class="mono" style="font-size:15px;font-weight:600;color:${p.status==='approved'?'var(--success)':p.status==='rejected'?'var(--danger)':'var(--warning)'};">${fmt(p.amount)}</span>
+                <span class="badge badge-${p.method}">${p.method.toUpperCase()}</span>
+                <span class="badge" style="background:var(--purple-dim);color:var(--purple);">${p.type.toUpperCase()}</span>
+              </div>
+              <span class="approval-badge approval-${p.status==='approved'?'approved':p.status==='rejected'?'rejected':'pending'}">
+                ${p.status==='approved'?'✅ Approved':p.status==='rejected'?'❌ Rejected':'⏳ Pending'}
+              </span>
+            </div>
+            <div style="font-size:12px;color:var(--muted);">
+              <div>Date: ${fmtDate(p.date)}</div>
+              <div>Paid to: ${p.paidTo}</div>
+              <div>Ref: <span class="ref-number">${p.ref}</span></div>
+              ${p.notes?`<div style="margin-top:4px;">${p.notes}</div>`:''}
+              ${p.status==='rejected'?`<div style="color:var(--danger);margin-top:4px;">Reason: ${p.rejectionReason}</div>`:''}
+            </div>
+          </div>`).join('')}
+    </div>
+    <div style="margin-top:1.5rem;display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn btn-sm btn-primary" onclick="closeModal('detailModal');openPaymentModal('${order.id}')">+ Add Payment</button>
+      <button class="btn btn-sm" style="background:var(--accent-dim);border-color:var(--accent);color:var(--accent);" onclick="closeModal('detailModal');openEditModal('${order.id}')">✏️ Edit Order</button>
+      <button class="btn btn-sm" onclick="deleteOrder('${order.id}')">Delete Order</button>
+    </div>`;
+  document.getElementById('detailModal').classList.add('open');
+}
+
+// ============================================================
+// Edit Order
+// ============================================================
+function openEditModal(orderId) {
+  currentOrderId = orderId;
+  const order = orders.find(o=>o.id===orderId);
+  const estSel = document.getElementById('e_estimator');
+  estSel.innerHTML = '<option value="">Select estimator...</option>' +
+    estimators.map(e=>`<option value="${e}" ${order.estimator===e?'selected':''}>${e}</option>`).join('');
+  const chanSel = document.getElementById('e_channel');
+  chanSel.innerHTML = '<option value="">Select channel...</option>' +
+    channels.map(c=>`<option value="${c}" ${order.channel===c?'selected':''}>${c}</option>`).join('');
+  document.getElementById('e_customer').value = order.customer||'';
+  document.getElementById('e_estimator').value = order.estimator||'';
+  document.getElementById('e_channel').value = order.channel||'';
+  document.getElementById('e_date').value = order.date||'';
+  document.getElementById('e_total').value = order.total||'';
+  document.getElementById('e_product').value = order.product||'';
+  document.getElementById('e_notes').value = order.notes||'';
+  document.getElementById('editModal').classList.add('open');
+}
+
+async function saveEditOrder() {
+  const customer = document.getElementById('e_customer').value.trim();
+  const estimator = document.getElementById('e_estimator').value;
+  const channel = document.getElementById('e_channel').value;
+  const date = document.getElementById('e_date').value;
+  const total = parseFloat(document.getElementById('e_total').value);
+  const product = document.getElementById('e_product').value.trim();
+  const notes = document.getElementById('e_notes').value.trim();
+  if (!customer||!estimator||!channel||!date||!total) { showToast('Fill all required fields','err'); return; }
+  const order = orders.find(o=>o.id===currentOrderId);
+  Object.assign(order, {customer,estimator,channel,date,total,product,notes});
+  saveLocal(); closeModal('editModal');
+  buildMonthTabs(); renderTable(); updateStats();
+  showToast('Order updated!','ok');
+  if (SCRIPT_URL !== 'YOUR_APPS_SCRIPT_URL_HERE') {
+    setSyncStatus(true,'Saving...');
+    try { await apiCall({action:'updateOrder', order}); setSyncStatus(false); }
+    catch(err) { showToast('Updated locally — sync failed','err'); setSyncStatus(false); }
+  }
+}
+
+function addEstimatorEdit() {
+  const name = prompt('Enter new estimator name:');
+  if (!name||!name.trim()) return;
+  if (estimators.includes(name.trim())) { showToast('Already exists','err'); return; }
+  estimators.push(name.trim()); estimators.sort(); saveLocal();
+  const estSel = document.getElementById('e_estimator');
+  const cur = estSel.value;
+  estSel.innerHTML = '<option value="">Select estimator...</option>' +
+    estimators.map(e=>`<option value="${e}" ${cur===e?'selected':''}>${e}</option>`).join('');
+  showToast(`Added: ${name.trim()}`,'ok');
+}
+
+function addChannelEdit() {
+  const name = prompt('Enter new channel:');
+  if (!name||!name.trim()) return;
+  if (channels.includes(name.trim())) { showToast('Already exists','err'); return; }
+  channels.push(name.trim()); channels.sort(); saveLocal();
+  const chanSel = document.getElementById('e_channel');
+  const cur = chanSel.value;
+  chanSel.innerHTML = '<option value="">Select channel...</option>' +
+    channels.map(c=>`<option value="${c}" ${cur===c?'selected':''}>${c}</option>`).join('');
+  showToast(`Added: ${name.trim()}`,'ok');
+}
+
+// ============================================================
+// Delete Order
+// ============================================================
+async function deleteOrder(id) {
+  if (!confirm('Delete this order? Cannot be undone.')) return;
+  orders = orders.filter(o=>o.id!==id);
+  saveLocal(); closeModal('detailModal');
+  buildMonthTabs(); renderTable(); updateStats();
+  showToast('Order deleted','ok');
+  if (SCRIPT_URL !== 'YOUR_APPS_SCRIPT_URL_HERE') {
+    setSyncStatus(true,'Saving...');
+    try { await apiCall({action:'deleteOrder',orderId:id}); setSyncStatus(false); }
+    catch(err) { showToast('Deleted locally — sync failed','err'); setSyncStatus(false); }
+  }
+}
+
+// ============================================================
+// Leaderboard
+// ============================================================
+function openLeaderboard() { updateLeaderboard(); document.getElementById('leaderboardModal').classList.add('open'); }
+function updateLeaderboard() {
+  const month = document.getElementById('leaderMonth').value;
+  let filtered = month==='all'?orders:orders.filter(o=>o.date.startsWith(month));
+  const stats={};
+  filtered.forEach(o=>{
+    const est=o.estimator||'Not Set';
+    if(!stats[est]) stats[est]={name:est,orders:0,revenue:0,collected:0};
+    stats[est].orders++; stats[est].revenue+=o.total; stats[est].collected+=totalApproved(o);
+  });
+  const sorted=Object.values(stats).sort((a,b)=>b.orders-a.orders);
+  const content=document.getElementById('leaderboardContent');
+  if(sorted.length===0){content.innerHTML='<div style="text-align:center;color:var(--muted);padding:3rem;">No data</div>';return;}
+  content.innerHTML=sorted.map((s,i)=>{
+    const rank=i+1, rankClass=rank===1?'gold':rank===2?'silver':rank===3?'bronze':'';
+    return `<div class="leaderboard-item">
+      <div style="display:flex;align-items:center;flex:1;">
+        <div class="leaderboard-rank ${rankClass}">${rank}</div>
+        <div class="leaderboard-name">${s.name}</div>
+      </div>
+      <div class="leaderboard-stats">
+        <div class="stat-item"><div class="stat-item-label">Orders</div><div class="stat-item-value">${s.orders}</div></div>
+        <div class="stat-item"><div class="stat-item-label">Revenue</div><div class="stat-item-value">${fmt(s.revenue)}</div></div>
+        <div class="stat-item"><div class="stat-item-label">Collected</div><div class="stat-item-value">${fmt(s.collected)}</div></div>
+        <div class="stat-item"><div class="stat-item-label">Avg</div><div class="stat-item-value">${fmt(s.revenue/s.orders)}</div></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ============================================================
+// Channel Report
+// ============================================================
+function openChannelReport() { updateChannelReport(); document.getElementById('channelModal').classList.add('open'); }
+function updateChannelReport() {
+  const month=document.getElementById('channelMonth').value;
+  let filtered=month==='all'?orders:orders.filter(o=>o.date.startsWith(month));
+  const stats={};
+  filtered.forEach(o=>{
+    const chan=o.channel||'Not Set';
+    if(!stats[chan]) stats[chan]={name:chan,orders:0,revenue:0,collected:0};
+    stats[chan].orders++; stats[chan].revenue+=o.total; stats[chan].collected+=totalApproved(o);
+  });
+  const sorted=Object.values(stats).sort((a,b)=>b.orders-a.orders);
+  const totalRevenue=sorted.reduce((sum,s)=>sum+s.revenue,0);
+  const content=document.getElementById('channelContent');
+  if(sorted.length===0){content.innerHTML='<div style="text-align:center;color:var(--muted);padding:3rem;">No data</div>';return;}
+  content.innerHTML=sorted.map(s=>{
+    const percent=((s.revenue/totalRevenue)*100).toFixed(1);
+    return `<div class="leaderboard-item">
+      <div style="flex:1;">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+          <span class="channel-badge channel-${s.name.toLowerCase().replace(/\s+/g,'-')}">${s.name}</span>
+          <div style="font-size:13px;color:var(--muted);">${percent}%</div>
+        </div>
+        <div style="background:var(--surface);height:8px;border-radius:4px;">
+          <div style="background:var(--accent);height:100%;width:${percent}%;border-radius:4px;"></div>
+        </div>
+      </div>
+      <div class="leaderboard-stats">
+        <div class="stat-item"><div class="stat-item-label">Orders</div><div class="stat-item-value">${s.orders}</div></div>
+        <div class="stat-item"><div class="stat-item-label">Revenue</div><div class="stat-item-value">${fmt(s.revenue)}</div></div>
+        <div class="stat-item"><div class="stat-item-label">Collected</div><div class="stat-item-value">${fmt(s.collected)}</div></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ============================================================
+// Render Table & Stats
+// ============================================================
+function buildMonthTabs() {
+  const months=new Set();
+  orders.forEach(o=>months.add(o.date.substring(0,7)));
+  const sorted=Array.from(months).sort().reverse();
+  document.getElementById('monthTabs').innerHTML=
+    `<div class="month-tab ${activeMonth==='all'?'active':''}" onclick="setMonth('all')">All Time</div>`+
+    sorted.map(m=>{
+      const label=new Date(m+'-01').toLocaleDateString('en-PH',{month:'short',year:'numeric'});
+      return `<div class="month-tab ${activeMonth===m?'active':''}" onclick="setMonth('${m}')">${label}</div>`;
+    }).join('');
+  const options='<option value="all">All Time</option>'+sorted.map(m=>{
+    const label=new Date(m+'-01').toLocaleDateString('en-PH',{month:'short',year:'numeric'});
+    return `<option value="${m}">${label}</option>`;
+  }).join('');
+  document.getElementById('leaderMonth').innerHTML=options;
+  document.getElementById('channelMonth').innerHTML=options;
+}
+
+function setMonth(month) { activeMonth=month; buildMonthTabs(); renderTable(); updateStats(); }
+
+function getFiltered() {
+  let rows=activeMonth==='all'?orders:orders.filter(o=>o.date.startsWith(activeMonth));
+  const search=document.getElementById('searchInput').value.toLowerCase();
+  if(search) rows=rows.filter(o=>o.customer.toLowerCase().includes(search)||(o.payments||[]).some(p=>(p.ref||'').toLowerCase().includes(search)));
+  const est=document.getElementById('estimatorFilter').value;
+  if(est!=='all') rows=rows.filter(o=>o.estimator===est);
+  const chan=document.getElementById('channelFilter').value;
+  if(chan!=='all') rows=rows.filter(o=>o.channel===chan);
+  const status=document.getElementById('statusFilter').value;
+  if(status==='pending') rows=rows.filter(o=>totalPending(o)>0);
+  else if(status==='approved') rows=rows.filter(o=>totalApproved(o)>0);
+  else if(status==='paid') rows=rows.filter(o=>getBalance(o)===0);
+  return rows;
+}
+
+function renderTable() {
+  const rows=getFiltered();
+  const tbody=document.getElementById('tableBody');
+  if(rows.length===0){tbody.innerHTML='<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:3rem;">No orders found</td></tr>';return;}
+  tbody.innerHTML=rows.map(o=>{
+    const dp=totalApprovedDP(o), pending=totalPending(o), balance=getBalance(o);
+    return `<tr class="${pending>0?'pending-row':''}" onclick="showDetail('${o.id}')">
+      <td><strong>${o.customer}</strong>${o.product?`<div style="font-size:11px;color:var(--muted);">${o.product}</div>`:''}</td>
+      <td>${o.estimator||'—'}</td>
+      <td><span class="channel-badge channel-${(o.channel||'').toLowerCase().replace(/\s+/g,'-')}">${o.channel||'—'}</span></td>
+      <td style="font-size:12px;color:var(--muted);">${fmtDate(o.date)}</td>
+      <td class="mono">${fmt(o.total)}</td>
+      <td class="mono" style="color:var(--success);">${fmt(dp)}</td>
+      <td class="mono" style="color:var(--orange);">${pending>0?fmt(pending):'—'}</td>
+      <td class="mono" style="color:var(--warning);">${fmt(balance)}</td>
+      <td>${balance===0?'<span class="approval-badge approval-approved">✅ Paid</span>':pending>0?'<span class="approval-badge approval-pending">⏳ Pending</span>':'<span style="color:var(--muted);">Unpaid</span>'}</td>
+      <td onclick="event.stopPropagation();"><button class="btn btn-sm" onclick="openPaymentModal('${o.id}')">+ Pay</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function updateStats() {
+  const rows=getFiltered();
+  document.getElementById('statTotalOrders').textContent=rows.length;
+  document.getElementById('statTotalContract').textContent=fmt(rows.reduce((sum,o)=>sum+o.total,0));
+  document.getElementById('statTotalDP').textContent=fmt(rows.reduce((sum,o)=>sum+totalApprovedDP(o),0));
+  document.getElementById('statTotalBalance').textContent=fmt(rows.reduce((sum,o)=>sum+getBalance(o),0));
+  const pendingCount=orders.reduce((sum,o)=>sum+(o.payments||[]).filter(p=>p.status==='pending').length,0);
+  const approvedCount=orders.reduce((sum,o)=>sum+(o.payments||[]).filter(p=>p.status==='approved').length,0);
+  document.getElementById('statPending').textContent=pendingCount;
+  document.getElementById('statApproved').textContent=approvedCount;
+  document.getElementById('pendingCount').textContent=pendingCount;
+  const estSet=new Set(orders.map(o=>o.estimator).filter(Boolean));
+  const estFilter=document.getElementById('estimatorFilter');
+  const curEst=estFilter.value;
+  estFilter.innerHTML='<option value="all">All Estimators</option>'+Array.from(estSet).sort().map(e=>`<option value="${e}" ${curEst===e?'selected':''}>${e}</option>`).join('');
+  const chanSet=new Set(orders.map(o=>o.channel).filter(Boolean));
+  const chanFilter=document.getElementById('channelFilter');
+  const curChan=chanFilter.value;
+  chanFilter.innerHTML='<option value="all">All Channels</option>'+Array.from(chanSet).sort().map(c=>`<option value="${c}" ${curChan===c?'selected':''}>${c}</option>`).join('');
+}
+
+function closeModal(id){document.getElementById(id).classList.remove('open');}
+function showToast(msg,type){
+  const t=document.getElementById('toast');
+  t.textContent=msg;
+  t.className=`toast show ${type==='ok'?'toast-ok':'toast-err'}`;
+  setTimeout(()=>t.classList.remove('show'),3000);
+}
+
+// ============================================================
+// Manual refresh button
+// ============================================================
+function refreshData() { loadFromSheets(); }
+
+// ============================================================
+// Init
+// ============================================================
+loadFromSheets();
+</script>
+</body>
+</html>
