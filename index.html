@@ -382,8 +382,16 @@ function showModal(id) {
   var el = document.getElementById(id);
   if (el) {
     el.classList.add('open');
-    if (id === 'lbModal')  renderLb();
-    if (id === 'mktModal') renderMkt();
+    if (id === 'lbModal') {
+      var lbTitle = document.querySelector('#lbModal .mh h3');
+      if (lbTitle) lbTitle.textContent = '🏆 Leaderboard' + (activeMonth !== 'ALL' ? ' — ' + activeMonth : ' — All Months');
+      renderLb();
+    }
+    if (id === 'mktModal') {
+      var mktTitle = document.querySelector('#mktModal .mh h3');
+      if (mktTitle) mktTitle.textContent = '📊 Marketing' + (activeMonth !== 'ALL' ? ' — ' + activeMonth : ' — All Months');
+      renderMkt();
+    }
   }
 }
 function hideModal(id) {
@@ -423,10 +431,11 @@ function loadData() {
     .then(function(r) { return r.json(); })
     .then(function(d) {
       if (d.ok) {
-        orders = [];
+        var loaded = [];
         for (var i = 0; i < d.orders.length; i++) {
-          orders.push(norm(d.orders[i]));
+          loaded.push(norm(d.orders[i]));
         }
+        orders = loaded;
         saveLoc();
         renderAll();
         setSS('', 'Synced ✓');
@@ -435,9 +444,10 @@ function loadData() {
       }
     })
     .catch(function(err) {
-      console.log('Load error:', err);
-      loadLoc();
-      setSS('er', 'Using local data — check connection');
+      // Do NOT wipe orders — just keep what we have and show local
+      setSS('er', 'Using local data');
+      if (orders.length === 0) loadLoc();
+      else renderAll();
     });
 }
 
@@ -447,8 +457,9 @@ function saveLoc() {
 function loadLoc() {
   try {
     var d = JSON.parse(localStorage.getItem('ghd_pt4') || '[]');
-    orders = [];
-    for (var i = 0; i < d.length; i++) orders.push(norm(d[i]));
+    var loaded = [];
+    for (var i = 0; i < d.length; i++) loaded.push(norm(d[i]));
+    orders = loaded;
     renderAll();
   } catch(e) { orders = []; renderAll(); }
 }
@@ -564,6 +575,7 @@ function selectMonth(m) {
   buildMonthTabs();
   updateMonthLabel();
   updateSum();
+  updateFil();
   renderTable();
 }
 
@@ -1077,7 +1089,33 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   loadData();
-  setInterval(loadData, 60000);
+  setInterval(function() {
+    // Only auto-refresh — never wipe current display
+    setSS('sy', 'Refreshing…');
+    fetch(GS + '?action=load', { method: 'GET' })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.ok && d.orders) {
+          var loaded = [];
+          for (var i = 0; i < d.orders.length; i++) loaded.push(norm(d.orders[i]));
+          orders = loaded;
+          saveLoc();
+          // Only re-render table — don't reset month tab
+          buildMonthTabs();
+          updateMonthLabel();
+          updateSum();
+          updateFil();
+          renderTable();
+          updPend();
+          setSS('', 'Synced ✓');
+        } else {
+          setSS('er', 'Auto-sync failed — data preserved');
+        }
+      })
+      .catch(function() {
+        setSS('er', 'Auto-sync failed — data preserved');
+      });
+  }, 60000);
 });
 </script>
 </body>
