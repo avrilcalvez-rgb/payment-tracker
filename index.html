@@ -426,28 +426,43 @@ function callGS(data) {
 
 // Load from sheet
 function loadData() {
-  setSS('sy', 'Loading…');
+  // Step 1: Always show local data first so screen is never blank
+  var stored = localStorage.getItem('ghd_pt4');
+  if (stored) {
+    try {
+      var local = JSON.parse(stored);
+      if (local.length > 0 && orders.length === 0) {
+        orders = local.map(function(o){ return norm(o); });
+        renderAll();
+      }
+    } catch(e) {}
+  }
+
+  // Step 2: Try to fetch fresh data from Google Sheets in background
+  setSS('sy', 'Syncing…');
   fetch(GS + '?action=load', { method: 'GET' })
     .then(function(r) { return r.json(); })
     .then(function(d) {
-      if (d.ok) {
+      if (d.ok && d.orders) {
         var loaded = [];
         for (var i = 0; i < d.orders.length; i++) {
           loaded.push(norm(d.orders[i]));
         }
-        orders = loaded;
-        saveLoc();
+        // Only update if we got real data
+        if (loaded.length > 0 || orders.length === 0) {
+          orders = loaded;
+          saveLoc();
+        }
         renderAll();
         setSS('', 'Synced ✓');
       } else {
-        throw new Error(d.error || 'Load failed');
+        throw new Error('bad response');
       }
     })
-    .catch(function(err) {
-      // Do NOT wipe orders — just keep what we have and show local
-      setSS('er', 'Using local data');
-      if (orders.length === 0) loadLoc();
-      else renderAll();
+    .catch(function() {
+      // Fetch failed — keep showing whatever is already on screen
+      // DO NOT touch orders array, DO NOT re-render (avoids blank flash)
+      setSS('er', 'Sheet offline — showing saved data');
     });
 }
 
@@ -1089,18 +1104,18 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   loadData();
+  // Auto-refresh every 90 seconds — background only, never clears screen
   setInterval(function() {
-    // Only auto-refresh — never wipe current display
-    setSS('sy', 'Refreshing…');
     fetch(GS + '?action=load', { method: 'GET' })
       .then(function(r) { return r.json(); })
       .then(function(d) {
         if (d.ok && d.orders) {
           var loaded = [];
           for (var i = 0; i < d.orders.length; i++) loaded.push(norm(d.orders[i]));
-          orders = loaded;
-          saveLoc();
-          // Only re-render table — don't reset month tab
+          if (loaded.length > 0 || orders.length === 0) {
+            orders = loaded;
+            saveLoc();
+          }
           buildMonthTabs();
           updateMonthLabel();
           updateSum();
@@ -1108,14 +1123,13 @@ document.addEventListener('DOMContentLoaded', function() {
           renderTable();
           updPend();
           setSS('', 'Synced ✓');
-        } else {
-          setSS('er', 'Auto-sync failed — data preserved');
         }
+        // If fails — do absolutely nothing, keep current display
       })
       .catch(function() {
-        setSS('er', 'Auto-sync failed — data preserved');
+        // Silent fail — never touch orders or display
       });
-  }, 60000);
+  }, 90000);
 });
 </script>
 </body>
