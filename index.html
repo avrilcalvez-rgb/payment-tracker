@@ -392,12 +392,14 @@ function callGS(data) {
 }
 
 function loadData() {
-  // Load local data instantly - never blank screen
+  // Show saved data instantly - screen never goes blank
   try {
-    var raw = localStorage.getItem('ghd_pt4') || localStorage.getItem('ghd_pt4');
+    var raw = localStorage.getItem('ghd_pt4') || localStorage.getItem('ghd_pt3');
     if (raw) {
       var tmp = JSON.parse(raw);
-      if (tmp && tmp.length > 0) { orders = tmp.map(function(o){ return norm(o); }); }
+      if (tmp && tmp.length > 0) {
+        orders = tmp.map(function(o){ return norm(o); });
+      }
     }
   } catch(e) {}
   renderAll();
@@ -405,6 +407,7 @@ function loadData() {
 }
 
 function syncFromSheet() {
+  renderAll();
   setSS('sy', 'Syncing…');
   fetch(GS + '?action=load', { method: 'GET' })
     .then(function(r) { return r.json(); })
@@ -412,18 +415,22 @@ function syncFromSheet() {
       if (d.ok && d.orders && d.orders.length > 0) {
         orders = d.orders.map(function(o){ return norm(o); });
         saveLoc(); renderAll(); setSS('', 'Synced ✓');
-      } else { setSS('', '✓ Ready'); }
+      } else {
+        setSS('', '✓ Up to date');
+      }
     })
-    .catch(function() { setSS('', '✓ Ready (local)'); });
+    .catch(function() {
+      setSS('', '✓ Showing saved data');
+    });
 }
 
 function saveLoc() { try { localStorage.setItem('ghd_pt4', JSON.stringify(orders)); } catch(e) {} }
 function loadLoc() {
   try {
-    var d = JSON.parse(localStorage.getItem('ghd_pt4') || '[]');
-    orders = d.map(function(o) { return norm(o); });
+    var d = JSON.parse(localStorage.getItem('ghd_pt4') || localStorage.getItem('ghd_pt3') || '[]');
+    if (d && d.length > 0) { orders = d.map(function(o){ return norm(o); }); }
     renderAll();
-  } catch(e) { orders = []; renderAll(); }
+  } catch(e) { renderAll(); }
 }
 
 function norm(o) {
@@ -773,6 +780,7 @@ function deleteOrder(oid) {
     var newOrders=[];
     for(var i=0;i<orders.length;i++){if(orders[i].order_id!==oid)newOrders.push(orders[i]);}
     orders=newOrders;
+    saveLoc();
     renderAll();
     callGS({action:'delete_order',order_id:oid});
   });
